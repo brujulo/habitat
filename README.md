@@ -1,56 +1,49 @@
-# Welcome to your Expo app 👋
+# Habitat 🌴
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App de bienes raíces para República Dominicana con **Brisa**, una asesora inmobiliaria virtual.
+Hecha con Expo (SDK 58) y Expo Router. Corre en iOS, Android y web.
 
-## Get started
+> Prototipo: los datos de propiedades son de ejemplo y Brisa responde con reglas (sin IA real todavía).
 
-1. Install dependencies
+## Qué incluye
 
-   ```bash
-   npm install
-   ```
+- **Explorar**: búsqueda por sector/ciudad, filtros de venta/alquiler, tipo de inmueble y ciudad.
+- **Cerca de ti**: ordena las propiedades por distancia usando tu ubicación (si no das permiso, usa el centro de Santo Domingo).
+- **Ficha de propiedad**: información sencilla arriba y botón **“Mostrar más”** con descripción, amenidades, datos clave, precio en RD$ y cuota hipotecaria estimada. Botones para ver en el mapa, preguntarle a Brisa y agendar visita (demo).
+- **Brisa** (chat): entiende zona, tipo, habitaciones y presupuesto (en US$ o RD$, “200 mil”, “RD$6 millones”…), recomienda hasta 3 propiedades, hace preguntas para calificar al cliente y responde dudas frecuentes: financiamiento, precalificación, impuestos de compra, Confotur, compra en plano, extranjeros, inversión.
+- **Favoritos**: guarda propiedades con el corazón (en memoria por ahora).
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Correrla
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Escanea el QR con **Expo Go** en tu teléfono, o presiona `w` para abrirla en el navegador.
 
-### Other setup steps
+## Estructura
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```
+src/
+  app/                  Rutas (Expo Router)
+    (tabs)/             Explorar, Cerca de ti, Brisa, Favoritos
+    propiedad/[id].tsx  Ficha de propiedad
+  screens/              Cuerpo de cada pantalla
+    brisa/engine.ts     Lógica de Brisa (aquí se conecta la IA real)
+  components/           Tarjeta de propiedad, chips, íconos, tabs
+  data/properties.ts    Propiedades de ejemplo
+  constants/            Tema (colores, espaciado) y valores de mercado (tasa US$/RD$)
+```
 
-## Learn more
+## Próximos pasos sugeridos
 
-To learn more about developing your project with Expo, look at the following resources:
+1. **Brisa con IA real**: crear una ruta de API (`src/app/api/brisa+api.ts`) que llame al modelo de IA con la API key en una variable de entorno, y reemplazar `responderBrisa` en `src/screens/brisa/engine.ts` por un `fetch` a esa ruta. La forma de los mensajes (`texto`, `propiedades`, `sugerencias`) ya está lista.
+2. **Datos reales**: mover `PROPIEDADES` a una base de datos (p. ej. Supabase) manteniendo el tipo `Propiedad`.
+3. **Mapa**: agregar un mapa con `expo-maps` (requiere development build) en la pestaña “Cerca de ti”.
+4. **Favoritos persistentes** con `expo-sqlite/kv-store`.
+5. **Agendar visita** real: formulario + WhatsApp o correo al asesor.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Nota legal
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+La información sobre impuestos, Confotur y financiamiento es general y referencial. Debe validarse con un abogado, notario o entidad financiera.
