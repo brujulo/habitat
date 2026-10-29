@@ -19,6 +19,15 @@ Hecha con Expo (SDK 58) y Expo Router. Corre en iOS, Android y web.
   - **Traspasa al asesor humano** solo cuando hace falta: si el cliente lo pide o está listo para cerrar. El asesor puede **tomar el caso** (Brisa pausa sus seguimientos) o **devolvérselo**.
   - Incluye 6 clientes de ejemplo; el cliente que usa la app aparece **en vivo**.
 
+## Modo conectado (Fase 1: Supabase + Claude)
+
+La app funciona en **modo demo** (datos de ejemplo y Brisa por reglas) hasta que la conectas a tu proyecto. Al conectarla:
+- las propiedades salen de **Supabase**, con varias inmobiliarias separadas por reglas de seguridad (RLS);
+- **Brisa responde con Claude** desde una Edge Function (`supabase/functions/brisa`), con herramientas para buscar propiedades, guardar el perfil del cliente, registrar interés, agendar visitas y traspasar a un asesor;
+- el **Panel ARM** pide login y muestra los clientes reales que Brisa gestiona.
+
+👉 Pasos en **[docs/PUESTA-EN-MARCHA.md](docs/PUESTA-EN-MARCHA.md)**.
+
 ## Correrla
 
 ```bash
@@ -43,6 +52,14 @@ src/
   components/           Tarjeta de propiedad, chips, íconos, tabs
   data/properties.ts    Propiedades de ejemplo
   constants/            Tema (colores, espaciado) y valores de mercado (tasa US$/RD$)
+  lib/                  Cliente de Supabase, sesión anónima y llamadas a Brisa
+  state/catalogo.tsx    Catálogo (base de datos o ejemplo)
+supabase/
+  migrations/           Tablas, RLS y funciones SQL
+  seed.sql              Datos iniciales (generado con scripts/generar-seed.ts)
+  functions/brisa/      Edge Function: Brisa con Claude
+  functions/_shared/    Agente, herramientas, prompt y acceso a datos
+docs/PUESTA-EN-MARCHA.md
 ```
 
 ## APK para Android
@@ -51,8 +68,8 @@ Cada push a `main` compila un APK con GitHub Actions (`.github/workflows/android
 
 ## Próximos pasos sugeridos
 
-1. **Brisa con IA real**: crear una ruta de API (`src/app/api/brisa+api.ts`) que llame al modelo de IA con la API key en una variable de entorno, y reemplazar `responderBrisa` en `src/screens/brisa/engine.ts` por un `fetch` a esa ruta. La forma de los mensajes (`texto`, `propiedades`, `sugerencias`) ya está lista.
-2. **Datos reales**: mover `PROPIEDADES` a una base de datos (p. ej. Supabase) manteniendo el tipo `Propiedad`.
+1. **WhatsApp Business** (Fase 2): conectar la Meta Cloud API a la misma función de Brisa.
+2. **Panel multiinmobiliaria** (Fase 3): alta de inmobiliarias, asesores e importación de propiedades.
 3. **Mapa**: agregar un mapa con `expo-maps` (requiere development build) en la pestaña “Cerca de ti”.
 4. **Favoritos y clientes persistentes** en una base de datos, con los seguimientos de Brisa ejecutándose desde el servidor (WhatsApp Business API).
 5. **Agendar visita** real: formulario + WhatsApp o correo al asesor.

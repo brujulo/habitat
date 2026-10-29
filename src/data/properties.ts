@@ -491,8 +491,22 @@ export const PROPIEDADES: Propiedad[] = [
   },
 ];
 
+/**
+ * Catálogo activo. En modo demo son las propiedades de arriba; cuando la app está
+ * conectada a Supabase, CatalogoProvider lo reemplaza por las de la base de datos.
+ */
+let catalogoActual: Propiedad[] = PROPIEDADES;
+
+export function setCatalogoActual(lista: Propiedad[]) {
+  catalogoActual = lista;
+}
+
+export function getCatalogoActual() {
+  return catalogoActual;
+}
+
 export function getPropiedad(id: string) {
-  return PROPIEDADES.find((p) => p.id === id);
+  return catalogoActual.find((p) => p.id === id) ?? PROPIEDADES.find((p) => p.id === id);
 }
 
 export const CIUDADES = Array.from(new Set(PROPIEDADES.map((p) => p.ciudad)));

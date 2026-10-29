@@ -8,6 +8,7 @@ import { Icon, type IconoNombre } from '@/components/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { getPropiedad } from '@/data/properties';
 import { useTheme } from '@/hooks/use-theme';
+import { useCatalogo } from '@/state/catalogo';
 import { useArm } from '@/state/arm';
 import { useFavoritos } from '@/state/favorites';
 import { banosTexto, cuotaMensual, formatDOP, formatUSD, precioTexto } from '@/utils/format';
@@ -20,6 +21,7 @@ const PLAZO_ANOS = 20;
 
 export function DetallePropiedad({ id }: { id: string }) {
   const c = useTheme();
+  useCatalogo(); // re-render cuando llega el catálogo en línea
   const insets = useSafeAreaInsets();
   const { esFavorito, alternar } = useFavoritos();
   const { registrarVista, registrarFavorito, registrarVisita } = useArm();

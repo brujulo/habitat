@@ -7,10 +7,12 @@ import { Encabezado, Screen } from '@/components/screen';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
 import { getPropiedad, type Propiedad } from '@/data/properties';
 import { useTheme } from '@/hooks/use-theme';
+import { useCatalogo } from '@/state/catalogo';
 import { useFavoritos } from '@/state/favorites';
 
 export function Favoritos() {
   const c = useTheme();
+  useCatalogo(); // re-render cuando llega el catálogo en línea
   const { ids } = useFavoritos();
   const lista = ids.map(getPropiedad).filter((p): p is Propiedad => !!p);
 

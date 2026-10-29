@@ -19,6 +19,8 @@ import { Screen } from '@/components/screen';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
 import { getPropiedad, type Propiedad } from '@/data/properties';
 import { useTheme } from '@/hooks/use-theme';
+import { mensajeBrisa } from '@/lib/brisa-remoto';
+import { conectado } from '@/lib/supabase';
 import { useArm } from '@/state/arm';
 import { precioTexto } from '@/utils/format';
 
@@ -37,6 +39,8 @@ export function Brisa({ propiedadId }: { propiedadId?: string }) {
   const [texto, setTexto] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
   const { registrarConversacion } = useArm();
+  // 'ia' = Claude vía Supabase; 'demo' = motor local de reglas.
+  const [modo, setModo] = useState<'ia' | 'demo'>(conectado ? 'ia' : 'demo');
 
   // Si se abre desde una propiedad, Brisa arranca hablando de ella.
   useEffect(() => {
@@ -52,6 +56,19 @@ export function Brisa({ propiedadId }: { propiedadId?: string }) {
     return () => clearTimeout(t);
   }, [mensajes.length, escribiendo]);
 
+  const responderLocal = (limpio: string, aviso?: string) => {
+    const { mensaje, ctx: nuevoCtx } = responderBrisa(limpio, ctx);
+    // Pausa breve para que se sienta como una conversación.
+    const demora = Math.min(1400, 450 + mensaje.texto.length * 4);
+    setTimeout(() => {
+      setCtx(nuevoCtx);
+      registrarConversacion(nuevoCtx, limpio, mensaje);
+      const texto = aviso ? `${mensaje.texto}\n\n(${aviso})` : mensaje.texto;
+      setMensajes((prev) => [...prev, { ...mensaje, texto, id: nuevoId(), autor: 'brisa' }]);
+      setEscribiendo(false);
+    }, demora);
+  };
+
   const enviar = (contenido: string) => {
     const limpio = contenido.trim();
     if (!limpio || escribiendo) return;
@@ -59,15 +76,24 @@ export function Brisa({ propiedadId }: { propiedadId?: string }) {
     setMensajes((prev) => [...prev, { id: nuevoId(), autor: 'usuario', texto: limpio }]);
     setEscribiendo(true);
 
-    const { mensaje, ctx: nuevoCtx } = responderBrisa(limpio, ctx);
-    // Pausa breve para que se sienta como una conversación.
-    const demora = Math.min(1400, 450 + mensaje.texto.length * 4);
-    setTimeout(() => {
-      setCtx(nuevoCtx);
-      registrarConversacion(nuevoCtx, limpio, mensaje);
-      setMensajes((prev) => [...prev, { ...mensaje, id: nuevoId(), autor: 'brisa' }]);
-      setEscribiendo(false);
-    }, demora);
+    if (!conectado) {
+      responderLocal(limpio);
+      return;
+    }
+    mensajeBrisa(limpio, ctx.propiedadFoco)
+      .then((r) => {
+        setModo('ia');
+        setMensajes((prev) => [
+          ...prev,
+          { id: nuevoId(), autor: 'brisa', texto: r.texto, propiedades: r.propiedades, sugerencias: r.sugerencias },
+        ]);
+        setEscribiendo(false);
+      })
+      .catch((e: Error) => {
+        console.warn('Brisa IA no disponible, usando modo demo:', e.message);
+        setModo('demo');
+        responderLocal(limpio, 'Respuesta en modo sin conexión');
+      });
   };
 
   const ultimoBrisa = [...mensajes].reverse().find((m) => m.autor === 'brisa');
@@ -85,7 +111,7 @@ export function Brisa({ propiedadId }: { propiedadId?: string }) {
           </Text>
         </View>
         <View style={[styles.demo, { backgroundColor: c.backgroundElement }]}>
-          <Text style={[styles.demoTexto, { color: c.textSecondary }]}>Demo</Text>
+          <Text style={[styles.demoTexto, { color: c.textSecondary }]}>{modo === 'ia' ? 'IA' : 'Demo'}</Text>
         </View>
       </View>
 

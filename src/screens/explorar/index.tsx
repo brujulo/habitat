@@ -7,8 +7,9 @@ import { Icon } from '@/components/icon';
 import { PropertyCard } from '@/components/property-card';
 import { Encabezado, Screen } from '@/components/screen';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
-import { CIUDADES, PROPIEDADES, TIPOS, type Operacion, type TipoPropiedad } from '@/data/properties';
+import { TIPOS, type Operacion, type TipoPropiedad } from '@/data/properties';
 import { useTheme } from '@/hooks/use-theme';
+import { useCatalogo } from '@/state/catalogo';
 
 const normalizar = (s: string) =>
   s
@@ -18,6 +19,7 @@ const normalizar = (s: string) =>
 
 export function Explorar() {
   const c = useTheme();
+  const { propiedades, ciudades: CIUDADES } = useCatalogo();
   const [busqueda, setBusqueda] = useState('');
   const [operacion, setOperacion] = useState<Operacion | null>(null);
   const [tipo, setTipo] = useState<TipoPropiedad | null>(null);
@@ -25,14 +27,14 @@ export function Explorar() {
 
   const resultados = useMemo(() => {
     const q = normalizar(busqueda.trim());
-    return PROPIEDADES.filter((p) => {
+    return propiedades.filter((p) => {
       if (operacion && p.operacion !== operacion) return false;
       if (tipo && p.tipo !== tipo) return false;
       if (ciudad && p.ciudad !== ciudad) return false;
       if (!q) return true;
       return normalizar(`${p.titulo} ${p.sector} ${p.ciudad} ${p.provincia} ${p.tipo}`).includes(q);
     });
-  }, [busqueda, operacion, tipo, ciudad]);
+  }, [propiedades, busqueda, operacion, tipo, ciudad]);
 
   const hayFiltros = !!(operacion || tipo || ciudad || busqueda);
 

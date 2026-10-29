@@ -12,7 +12,7 @@ export const ETAPAS: Etapa[] = [
   'Perdido',
 ];
 
-export type Canal = 'App' | 'WhatsApp' | 'Instagram' | 'Web';
+export type Canal = 'App' | 'WhatsApp' | 'Instagram' | 'Web' | 'Messenger';
 
 export type TipoEvento = 'mensaje' | 'vista' | 'favorito' | 'visita' | 'seguimiento' | 'traspaso' | 'etapa' | 'nota';
 

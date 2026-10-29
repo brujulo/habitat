@@ -1,10 +1,15 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { etapaSugerida } from '@/arm/logic';
 import type { Cliente, Evento } from '@/arm/types';
 import { CLIENTES_DEMO } from '@/data/clientes-demo';
 import { getPropiedad } from '@/data/properties';
+import { eventoBrisa } from '@/lib/brisa-remoto';
+import { idSesion } from '@/lib/sesion';
+import { conectado, supabase } from '@/lib/supabase';
 import type { ContextoBrisa, MensajeBrisa } from '@/screens/brisa/engine';
+
+import { actualizarClienteRemoto, cargarClientes, cargarMembresia, type Membresia } from './arm-remoto';
 
 const SESION = 'sesion';
 
@@ -17,6 +22,15 @@ type ArmCtx = {
   registrarFavorito: (propiedadId: string, guardado: boolean) => void;
   registrarVisita: (propiedadId: string) => void;
   actualizar: (id: string, cambios: Partial<Cliente>, evento?: Omit<Evento, 'id' | 'fecha'>) => void;
+  /** 'demo': datos de ejemplo en memoria. 'conectado': clientes reales en Supabase (requiere login). */
+  modo: 'demo' | 'conectado';
+  usuario: { email: string } | null;
+  membresia: Membresia | null;
+  cargando: boolean;
+  error: string | null;
+  iniciarSesion: (email: string, clave: string) => Promise<string | null>;
+  cerrarSesion: () => Promise<void>;
+  recargar: () => Promise<void>;
 };
 
 const Ctx = createContext<ArmCtx | null>(null);
@@ -51,6 +65,69 @@ const resumir = (s: string, max = 120) => (s.length > max ? `${s.slice(0, max - 
 export function ArmProvider({ children }: { children: ReactNode }) {
   const [demo, setDemo] = useState<Cliente[]>(CLIENTES_DEMO);
   const [sesion, setSesion] = useState<Cliente | null>(null);
+
+  // ---- Modo conectado (Supabase) ----
+  const [usuario, setUsuario] = useState<{ email: string } | null>(null);
+  const [membresia, setMembresia] = useState<Membresia | null>(null);
+  const [remotos, setRemotos] = useState<Cliente[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const recargar = useCallback(async () => {
+    if (!supabase) return;
+    setCargando(true);
+    setError(null);
+    try {
+      const m = await cargarMembresia();
+      setMembresia(m);
+      if (!m) {
+        setRemotos([]);
+        setError('Tu usuario no está asignado a ninguna inmobiliaria. Pide al administrador que te agregue.');
+        return;
+      }
+      setRemotos(await cargarClientes(await idSesion()));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      setUsuario(data.session?.user?.email ? { email: data.session.user.email } : null);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_evento, s) => {
+      setUsuario(s?.user?.email ? { email: s.user.email } : null);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (usuario) recargar();
+    else {
+      setRemotos([]);
+      setMembresia(null);
+    }
+  }, [usuario, recargar]);
+
+  // Mientras el panel está abierto con sesión, refresca cada 30 s para ver lo que hace Brisa.
+  useEffect(() => {
+    if (!usuario) return;
+    const t = setInterval(() => recargar(), 30_000);
+    return () => clearInterval(t);
+  }, [usuario, recargar]);
+
+  const iniciarSesion = useCallback(async (email: string, clave: string) => {
+    if (!supabase) return 'La app no está conectada a Supabase.';
+    const { error: e } = await supabase.auth.signInWithPassword({ email: email.trim(), password: clave });
+    return e ? (e.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos.' : e.message) : null;
+  }, []);
+
+  const cerrarSesion = useCallback(async () => {
+    await supabase?.auth.signOut();
+  }, []);
 
   const editarSesion = useCallback((fn: (c: Cliente) => Cliente) => {
     setSesion((prev) => {
@@ -105,6 +182,7 @@ export function ArmProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const p = getPropiedad(id);
       if (!p) return;
+      eventoBrisa('vista', id);
       editarSesion((c) => ({
         ...c,
         propiedadesInteres: c.propiedadesInteres.includes(id) ? c.propiedadesInteres : [...c.propiedadesInteres, id],
@@ -118,6 +196,7 @@ export function ArmProvider({ children }: { children: ReactNode }) {
     (id: string, guardado: boolean) => {
       const p = getPropiedad(id);
       if (!p) return;
+      eventoBrisa('favorito', id, guardado);
       editarSesion((c) => ({
         ...c,
         propiedadesInteres: guardado ? [id, ...c.propiedadesInteres.filter((x) => x !== id)] : c.propiedadesInteres,
@@ -138,6 +217,7 @@ export function ArmProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const p = getPropiedad(id);
       if (!p) return;
+      eventoBrisa('visita', id);
       editarSesion((c) => ({
         ...c,
         etapa: c.etapa === 'Negociación' || c.etapa === 'Cerrado' ? c.etapa : 'Visita agendada',
@@ -152,18 +232,30 @@ export function ArmProvider({ children }: { children: ReactNode }) {
     [editarSesion],
   );
 
-  const actualizar = useCallback<ArmCtx['actualizar']>((id, cambios, evento) => {
-    const aplicar = (c: Cliente): Cliente => ({
-      ...c,
-      ...cambios,
-      ultimaActividad: Date.now(),
-      eventos: evento ? [...c.eventos, nuevoEvento(evento)] : c.eventos,
-    });
-    if (id === SESION) setSesion((prev) => (prev ? aplicar(prev) : prev));
-    else setDemo((prev) => prev.map((c) => (c.id === id ? aplicar(c) : c)));
-  }, []);
+  const actualizar = useCallback<ArmCtx['actualizar']>(
+    (id, cambios, evento) => {
+      if (conectado) {
+        if (!membresia) return;
+        actualizarClienteRemoto({ id }, membresia.inmobiliariaId, cambios, evento)
+          .then(recargar)
+          .catch((e: Error) => setError(e.message));
+        // Reflejo inmediato en pantalla mientras se guarda.
+        setRemotos((prev) => prev.map((c) => (c.id === id ? { ...c, ...cambios, ultimaActividad: Date.now() } : c)));
+        return;
+      }
+      const aplicar = (c: Cliente): Cliente => ({
+        ...c,
+        ...cambios,
+        ultimaActividad: Date.now(),
+        eventos: evento ? [...c.eventos, nuevoEvento(evento)] : c.eventos,
+      });
+      if (id === SESION) setSesion((prev) => (prev ? aplicar(prev) : prev));
+      else setDemo((prev) => prev.map((c) => (c.id === id ? aplicar(c) : c)));
+    },
+    [membresia, recargar],
+  );
 
-  const clientes = useMemo(() => (sesion ? [sesion, ...demo] : demo), [sesion, demo]);
+  const clientes = useMemo(() => (conectado ? remotos : sesion ? [sesion, ...demo] : demo), [remotos, sesion, demo]);
 
   const value = useMemo<ArmCtx>(
     () => ({
@@ -174,8 +266,30 @@ export function ArmProvider({ children }: { children: ReactNode }) {
       registrarFavorito,
       registrarVisita,
       actualizar,
+      modo: conectado ? 'conectado' : 'demo',
+      usuario,
+      membresia,
+      cargando,
+      error,
+      iniciarSesion,
+      cerrarSesion,
+      recargar,
     }),
-    [clientes, registrarConversacion, registrarVista, registrarFavorito, registrarVisita, actualizar],
+    [
+      clientes,
+      registrarConversacion,
+      registrarVista,
+      registrarFavorito,
+      registrarVisita,
+      actualizar,
+      usuario,
+      membresia,
+      cargando,
+      error,
+      iniciarSesion,
+      cerrarSesion,
+      recargar,
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

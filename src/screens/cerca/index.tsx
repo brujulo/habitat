@@ -6,8 +6,8 @@ import { Icon } from '@/components/icon';
 import { PropertyCard } from '@/components/property-card';
 import { Encabezado, Screen } from '@/components/screen';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
-import { PROPIEDADES } from '@/data/properties';
 import { useTheme } from '@/hooks/use-theme';
+import { useCatalogo } from '@/state/catalogo';
 import { useUbicacion } from '@/hooks/use-ubicacion';
 import { distanciaKm, distanciaTexto } from '@/utils/geo';
 
@@ -15,15 +15,17 @@ const RADIOS = [5, 25, 100, null] as const;
 
 export function Cerca() {
   const c = useTheme();
+  const { propiedades } = useCatalogo();
   const { coords, estado, reintentar } = useUbicacion();
   const [radio, setRadio] = useState<(typeof RADIOS)[number]>(25);
 
   const lista = useMemo(
     () =>
-      PROPIEDADES.map((p) => ({ p, km: distanciaKm(coords, p) }))
+      propiedades
+        .map((p) => ({ p, km: distanciaKm(coords, p) }))
         .filter(({ km }) => radio === null || km <= radio)
         .sort((a, b) => a.km - b.km),
-    [coords, radio],
+    [propiedades, coords, radio],
   );
 
   const aviso =

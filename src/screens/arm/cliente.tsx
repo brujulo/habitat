@@ -24,13 +24,16 @@ import { describirCriterios, hayCriterios } from '@/screens/brisa/engine';
 import { useArm } from '@/state/arm';
 import { precioTexto } from '@/utils/format';
 
+import { LoginAsesor } from './login';
 import { armStyles, Avatar, BadgeTemperatura, BarraArm, BarraPuntaje, Boton, Etiqueta, Seccion, Tarjeta } from './ui';
 
 export function DetalleCliente({ id }: { id: string }) {
   const c = useTheme();
-  const { getCliente, actualizar } = useArm();
+  const { getCliente, actualizar, modo, usuario } = useArm();
   const cl = getCliente(id);
   const [aviso, setAviso] = useState<string | null>(null);
+
+  if (modo === 'conectado' && !usuario) return <LoginAsesor />;
 
   if (!cl) {
     return (

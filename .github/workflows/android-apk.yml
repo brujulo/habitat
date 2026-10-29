@@ -19,6 +19,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Conexión a Supabase: se definen en GitHub → Settings → Secrets and variables → Actions → Variables.
+    # Si no existen, el APK se compila en modo demo.
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_INMOBILIARIA: ${{ vars.EXPO_PUBLIC_INMOBILIARIA }}
     steps:
       - uses: actions/checkout@v4
 

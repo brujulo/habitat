@@ -1,0 +1,6 @@
+# Configuración mínima para la CLI de Supabase (supabase link / functions deploy).
+project_id = "habitat"
+
+[functions.brisa]
+# La app llama a Brisa sin sesión de usuario (clientes anónimos), así que no se exige JWT.
+verify_jwt = false

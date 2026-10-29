@@ -1,6 +1,15 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { hace, puntuar, siguienteAccion, temperatura } from '@/arm/logic';
 import type { Cliente } from '@/arm/types';
@@ -10,6 +19,7 @@ import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useArm } from '@/state/arm';
 
+import { LoginAsesor } from './login';
 import { Avatar, BadgeTemperatura, BarraArm, Etiqueta } from './ui';
 
 type Filtro = 'Todos' | 'Para asesor' | 'Calientes' | 'Brisa a cargo' | 'Cerrados';
@@ -20,7 +30,7 @@ const necesitaAsesor = (c: Cliente) => activo(c) && !siguienteAccion(c).automati
 
 export function PanelArm() {
   const c = useTheme();
-  const { clientes } = useArm();
+  const { clientes, modo, usuario, membresia, cargando, error, cerrarSesion, recargar } = useArm();
   const [filtro, setFiltro] = useState<Filtro>('Todos');
 
   const filas = useMemo(() => {
@@ -56,15 +66,49 @@ export function PanelArm() {
     ];
   }, [clientes]);
 
+  if (modo === 'conectado' && !usuario) return <LoginAsesor />;
+
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
-      <BarraArm subtitulo="ARM · Brisa gestiona tus clientes" titulo="Panel del asesor" />
+      <BarraArm
+        subtitulo={membresia ? `ARM · ${membresia.inmobiliaria}` : 'ARM · Brisa gestiona tus clientes'}
+        titulo="Panel del asesor"
+        derecha={
+          modo === 'conectado' ? (
+            <Pressable
+              onPress={cerrarSesion}
+              accessibilityRole="button"
+              hitSlop={8}
+              style={[styles.salir, { borderColor: c.border, backgroundColor: c.card }]}
+            >
+              <Text style={[styles.salirTexto, { color: c.textSecondary }]}>Salir</Text>
+            </Pressable>
+          ) : undefined
+        }
+      />
       <FlatList
         data={filas}
         keyExtractor={({ cl }) => cl.id}
         contentContainerStyle={styles.lista}
+        refreshControl={
+          modo === 'conectado' ? (
+            <RefreshControl refreshing={cargando} onRefresh={recargar} tintColor={c.primary} />
+          ) : undefined
+        }
         ListHeaderComponent={
           <View style={{ gap: Spacing.three }}>
+            {modo === 'demo' && (
+              <View style={[styles.aviso, { backgroundColor: c.warnSoft }]}>
+                <Text style={[styles.avisoTexto, { color: c.text }]}>
+                  Modo demo: clientes de ejemplo. Conecta Supabase para ver los clientes reales que atiende Brisa.
+                </Text>
+              </View>
+            )}
+            {error && (
+              <View style={[styles.aviso, { backgroundColor: c.accentSoft }]}>
+                <Text style={[styles.avisoTexto, { color: c.text }]}>{error}</Text>
+              </View>
+            )}
             <View style={styles.kpis}>
               {kpis.map((k) => (
                 <View key={k.label} style={[styles.kpi, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -92,7 +136,11 @@ export function PanelArm() {
         ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
         renderItem={({ item: { cl, puntos } }) => <FilaCliente cliente={cl} puntos={puntos} />}
         ListEmptyComponent={
-          <Text style={[styles.vacio, { color: c.textSecondary }]}>No hay clientes en esta vista por ahora.</Text>
+          cargando ? (
+            <ActivityIndicator color={c.primary} style={{ padding: Spacing.five }} />
+          ) : (
+            <Text style={[styles.vacio, { color: c.textSecondary }]}>No hay clientes en esta vista por ahora.</Text>
+          )
         }
       />
     </View>
@@ -147,6 +195,15 @@ function FilaCliente({ cliente: cl, puntos }: { cliente: Cliente; puntos: number
 }
 
 const styles = StyleSheet.create({
+  salir: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+  },
+  salirTexto: { fontSize: 13, fontWeight: '700' },
+  aviso: { padding: Spacing.three - 4, borderRadius: Radius.md },
+  avisoTexto: { fontSize: 14, lineHeight: 20 },
   lista: {
     padding: Spacing.three,
     paddingBottom: Spacing.six,
