@@ -45,7 +45,24 @@ export function Explorar() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View>
-            <Encabezado subtitulo="Bienes raíces en RD" titulo="Habitat" />
+            <Encabezado
+              subtitulo="Bienes raíces en RD"
+              titulo="Habitat"
+              derecha={
+                <Pressable
+                  onPress={() => router.push('/arm')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir panel ARM del asesor"
+                  style={({ pressed }) => [
+                    styles.armBtn,
+                    { backgroundColor: c.card, borderColor: c.border, opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <Icon name="chispa" size={14} color={c.primary} />
+                  <Text style={[styles.armBtnTexto, { color: c.primary }]}>Panel ARM</Text>
+                </Pressable>
+              }
+            />
 
             <View style={[styles.buscador, { backgroundColor: c.card, borderColor: c.border }]}>
               <Icon name="buscar" size={18} color={c.textSecondary} />
@@ -135,6 +152,17 @@ export function Explorar() {
 }
 
 const styles = StyleSheet.create({
+  armBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    marginBottom: 4,
+  },
+  armBtnTexto: { fontSize: 13, fontWeight: '700' },
   buscador: {
     flexDirection: 'row',
     alignItems: 'center',

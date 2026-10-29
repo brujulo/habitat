@@ -19,6 +19,7 @@ import { Screen } from '@/components/screen';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
 import { getPropiedad, type Propiedad } from '@/data/properties';
 import { useTheme } from '@/hooks/use-theme';
+import { useArm } from '@/state/arm';
 import { precioTexto } from '@/utils/format';
 
 import { BIENVENIDA, bienvenidaConPropiedad, responderBrisa, type ContextoBrisa, type MensajeBrisa } from './engine';
@@ -35,6 +36,7 @@ export function Brisa({ propiedadId }: { propiedadId?: string }) {
   const [ctx, setCtx] = useState<ContextoBrisa>({ criterios: {} });
   const [texto, setTexto] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
+  const { registrarConversacion } = useArm();
 
   // Si se abre desde una propiedad, Brisa arranca hablando de ella.
   useEffect(() => {
@@ -62,6 +64,7 @@ export function Brisa({ propiedadId }: { propiedadId?: string }) {
     const demora = Math.min(1400, 450 + mensaje.texto.length * 4);
     setTimeout(() => {
       setCtx(nuevoCtx);
+      registrarConversacion(nuevoCtx, limpio, mensaje);
       setMensajes((prev) => [...prev, { ...mensaje, id: nuevoId(), autor: 'brisa' }]);
       setEscribiendo(false);
     }, demora);
@@ -124,6 +127,14 @@ export function Brisa({ propiedadId }: { propiedadId?: string }) {
             multiline
             {...(Platform.OS === 'web' ? { rows: 1 } : null)}
             submitBehavior="submit"
+            onKeyPress={(e) => {
+              // En web, Enter envía y Shift+Enter hace salto de línea.
+              const ev = e.nativeEvent as { key: string; shiftKey?: boolean };
+              if (Platform.OS === 'web' && ev.key === 'Enter' && !ev.shiftKey) {
+                (e as unknown as { preventDefault?: () => void }).preventDefault?.();
+                enviar(texto);
+              }
+            }}
             accessibilityLabel="Mensaje para Brisa"
           />
           <Pressable

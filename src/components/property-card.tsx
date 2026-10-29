@@ -6,6 +6,7 @@ import { Icon } from '@/components/icon';
 import { Radius, Spacing } from '@/constants/theme';
 import type { Propiedad } from '@/data/properties';
 import { useTheme } from '@/hooks/use-theme';
+import { useArm } from '@/state/arm';
 import { useFavoritos } from '@/state/favorites';
 import { banosTexto, precioTexto } from '@/utils/format';
 
@@ -21,6 +22,7 @@ export function PropertyCard({
 }) {
   const c = useTheme();
   const { esFavorito, alternar } = useFavoritos();
+  const { registrarFavorito } = useArm();
   const fav = esFavorito(p.id);
 
   return (
@@ -50,6 +52,7 @@ export function PropertyCard({
             e.preventDefault?.();
             e.stopPropagation?.();
             alternar(p.id);
+            registrarFavorito(p.id, !fav);
           }}
           hitSlop={10}
           accessibilityRole="button"

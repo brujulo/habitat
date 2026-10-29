@@ -28,9 +28,24 @@ export type Criterios = {
   playa?: boolean;
 };
 
+export type Proposito = 'Vivir' | 'Invertir';
+export type Plazo = 'Inmediato' | '1 a 6 meses' | 'Más de 6 meses';
+
+/** Lo que Brisa va aprendiendo del cliente durante la conversación (alimenta el ARM). */
+export type PerfilCliente = {
+  nombre?: string;
+  telefono?: string;
+  proposito?: Proposito;
+  plazo?: Plazo;
+  pideHumano?: boolean;
+  interesFinanciamiento?: boolean;
+};
+
 export type ContextoBrisa = {
   criterios: Criterios;
   propiedadFoco?: string;
+  perfil?: PerfilCliente;
+  pidioContacto?: boolean;
 };
 
 const norm = (s: string) =>
@@ -162,7 +177,7 @@ export function extraerCriterios(textoOriginal: string, previos: Criterios = {})
   return c;
 }
 
-function filtrar(c: Criterios, holgura = 1.15): Propiedad[] {
+export function filtrar(c: Criterios, holgura = 1.15): Propiedad[] {
   return PROPIEDADES.filter((p) => {
     if (c.ciudades?.length && !c.ciudades.includes(p.ciudad)) return false;
     if (c.sectores?.length && !c.sectores.includes(p.sector)) return false;
@@ -180,7 +195,7 @@ function filtrar(c: Criterios, holgura = 1.15): Propiedad[] {
   });
 }
 
-function hayCriterios(c: Criterios) {
+export function hayCriterios(c: Criterios) {
   return !!(
     c.ciudades?.length ||
     c.sectores?.length ||
@@ -193,7 +208,7 @@ function hayCriterios(c: Criterios) {
   );
 }
 
-function describirCriterios(c: Criterios) {
+export function describirCriterios(c: Criterios) {
   const partes: string[] = [];
   if (c.tipo) partes.push(c.tipo.toLowerCase() + (c.tipo === 'Local' ? '' : 's'));
   if (c.operacion) partes.push(c.operacion === 'Venta' ? 'en venta' : 'en alquiler');
@@ -365,7 +380,7 @@ function sobreFoco(t: string, p: Propiedad): MensajeBrisa | null {
   return null;
 }
 
-export function responderBrisa(texto: string, ctx: ContextoBrisa): { mensaje: MensajeBrisa; ctx: ContextoBrisa } {
+function responderBase(texto: string, ctx: ContextoBrisa): { mensaje: MensajeBrisa; ctx: ContextoBrisa } {
   const t = ` ${norm(texto)} `;
   const foco = ctx.propiedadFoco ? getPropiedad(ctx.propiedadFoco) : undefined;
 
@@ -381,7 +396,7 @@ export function responderBrisa(texto: string, ctx: ContextoBrisa): { mensaje: Me
         texto: '¡Perfecto, empecemos de cero! ¿Qué zona y presupuesto tienes en mente?',
         sugerencias: SUGERENCIAS_INICIO,
       },
-      ctx: { criterios: {} },
+      ctx: { ...ctx, criterios: {}, propiedadFoco: undefined },
     };
   }
   if (tiene(t, 'gracias')) {
@@ -505,4 +520,148 @@ export function responderBrisa(texto: string, ctx: ContextoBrisa): { mensaje: Me
     },
     ctx: nuevoCtx,
   };
+}
+
+const PALABRAS_NO_NOMBRE = new Set([
+  'extranjero',
+  'extranjera',
+  'dominicano',
+  'dominicana',
+  'de',
+  'el',
+  'la',
+  'un',
+  'una',
+  'nuevo',
+  'nueva',
+  'inversionista',
+  'comprador',
+  'compradora',
+  'agente',
+  'asesor',
+  'asesora',
+  'soltero',
+  'casado',
+  'casada',
+]);
+
+/** Extrae datos del cliente (nombre, WhatsApp, propósito, plazo) para el ARM. */
+export function extraerPerfil(textoOriginal: string, previo: PerfilCliente = {}): PerfilCliente {
+  const t = ` ${norm(textoOriginal)} `;
+  const p: PerfilCliente = { ...previo };
+
+  const tel = textoOriginal.match(/(?:\+?1[\s.-]?)?\(?(809|829|849)\)?[\s.-]?(\d{3})[\s.-]?(\d{4})/);
+  if (tel) p.telefono = `${tel[1]}-${tel[2]}-${tel[3]}`;
+
+  const nom =
+    textoOriginal.match(/(?:me llamo|mi nombre es)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/i) ??
+    textoOriginal.match(/(?:^|[\s,.¡!])soy\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/);
+  if (nom && !PALABRAS_NO_NOMBRE.has(norm(nom[1].split(' ')[0]))) {
+    p.nombre = nom[1]
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  if (tiene(t, 'invertir', 'inversion', 'rentar', 'airbnb', 'renta vacacional', 'rentabil')) p.proposito = 'Invertir';
+  else if (tiene(t, 'para vivir', 'mi familia', 'mudarme', 'mudarnos', 'vivir alli', 'vivir ahi', 'mis hijos'))
+    p.proposito = 'Vivir';
+
+  if (tiene(t, 'urgente', 'ya mismo', 'lo antes posible', 'este mes', 'inmediat', 'cuanto antes'))
+    p.plazo = 'Inmediato';
+  else if (/\b([1-6]|un|dos|tres|cuatro|cinco|seis)\s+mes/.test(t) || tiene(t, 'proximos meses', 'pronto'))
+    p.plazo = '1 a 6 meses';
+  else if (tiene(t, 'proximo ano', 'el ano que viene', 'sin prisa', 'mas adelante', 'no tengo prisa'))
+    p.plazo = 'Más de 6 meses';
+
+  if (
+    tiene(
+      t,
+      'hablar con un asesor',
+      'hablar con alguien',
+      'una persona',
+      'asesor humano',
+      'agente real',
+      'me llamen',
+      'llamenme',
+      'llamarme',
+    )
+  )
+    p.pideHumano = true;
+  if (tiene(t, 'financ', 'prestamo', 'hipotec', 'cuota', 'precalific')) p.interesFinanciamiento = true;
+
+  return p;
+}
+
+/**
+ * Punto de entrada del chat. Además de responder, Brisa actúa como ARM:
+ * capta el perfil del cliente, pide su contacto en el momento oportuno
+ * y lo traspasa a un asesor humano cuando lo solicita.
+ */
+export function responderBrisa(texto: string, ctx: ContextoBrisa): { mensaje: MensajeBrisa; ctx: ContextoBrisa } {
+  const previo = ctx.perfil ?? {};
+  const perfil = extraerPerfil(texto, previo);
+  const ctxConPerfil: ContextoBrisa = { ...ctx, perfil };
+  const nuevoTelefono = perfil.telefono && perfil.telefono !== previo.telefono;
+  const nuevoNombre = perfil.nombre && perfil.nombre !== previo.nombre;
+
+  if (perfil.pideHumano && !previo.pideHumano) {
+    const saludo = perfil.nombre ? `${perfil.nombre.split(' ')[0]}, c` : 'C';
+    return {
+      mensaje: {
+        texto: perfil.telefono
+          ? `${saludo}laro que sí. Ya le pasé tu caso a un asesor de Habitat con todo lo que hemos hablado, así no tienes que repetir nada. Te escribirá al ${perfil.telefono} en breve. Mientras tanto, sigo aquí para lo que necesites.`
+          : `${saludo}laro que sí. Para que un asesor te contacte, déjame tu nombre y tu número de WhatsApp y le paso tu caso con todo lo que hemos hablado.`,
+        sugerencias: perfil.telefono ? ['Muéstrame más opciones', '¿Cómo funciona el financiamiento?'] : undefined,
+      },
+      ctx: { ...ctxConPerfil, pidioContacto: true },
+    };
+  }
+
+  // El mensaje trae datos de contacto: Brisa los confirma y explica el seguimiento.
+  if (nuevoTelefono || (nuevoNombre && norm(texto).split(/\s+/).length <= 6)) {
+    const nombre = perfil.nombre ? `, ${perfil.nombre.split(' ')[0]}` : '';
+    let texto2: string;
+    if (perfil.telefono && perfil.pideHumano) {
+      texto2 = `¡Gracias${nombre}! Ya le pasé tu caso a un asesor de Habitat. Te escribirá al ${perfil.telefono} con todo el contexto de nuestra conversación.`;
+    } else if (perfil.telefono) {
+      texto2 = `¡Perfecto${nombre}! Guardé tu WhatsApp (${perfil.telefono}). Te escribiré cuando entre una propiedad que encaje contigo y te recordaré cualquier visita que agendes.`;
+    } else {
+      texto2 = `¡Mucho gusto${nombre}! ¿Me compartes tu WhatsApp para enviarte opciones nuevas apenas salgan?`;
+    }
+    const sigue = siguientePregunta(ctx.criterios);
+    return {
+      mensaje: {
+        texto: [
+          texto2,
+          perfil.telefono && sigue
+            ? `Para afinar la búsqueda: ${sigue.charAt(0).toLowerCase()}${sigue.slice(1)}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        sugerencias: perfil.telefono
+          ? sigue
+            ? ['Hasta 150 mil', 'Hasta 300 mil', 'Cerca de la playa', 'En Santo Domingo']
+            : ['Muéstrame opciones', 'Quiero agendar una visita']
+          : undefined,
+      },
+      ctx: { ...ctxConPerfil, pidioContacto: true },
+    };
+  }
+
+  const r = responderBase(texto, ctxConPerfil);
+  const out: ContextoBrisa = { ...r.ctx, perfil };
+
+  // Tras recomendar, pide el contacto una sola vez (como haría una buena vendedora).
+  if (r.mensaje.propiedades?.length && !perfil.telefono && !out.pidioContacto) {
+    return {
+      mensaje: {
+        ...r.mensaje,
+        texto: `${r.mensaje.texto}\n\nSi me dejas tu nombre y WhatsApp, te aviso apenas entre algo que encaje contigo. 📲`,
+      },
+      ctx: { ...out, pidioContacto: true },
+    };
+  }
+  return { mensaje: r.mensaje, ctx: out };
 }

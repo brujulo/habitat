@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { Icon, type IconoNombre } from '@/components/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { getPropiedad } from '@/data/properties';
 import { useTheme } from '@/hooks/use-theme';
+import { useArm } from '@/state/arm';
 import { useFavoritos } from '@/state/favorites';
 import { banosTexto, cuotaMensual, formatDOP, formatUSD, precioTexto } from '@/utils/format';
 import { urlMapa } from '@/utils/geo';
@@ -21,8 +22,14 @@ export function DetallePropiedad({ id }: { id: string }) {
   const c = useTheme();
   const insets = useSafeAreaInsets();
   const { esFavorito, alternar } = useFavoritos();
+  const { registrarVista, registrarFavorito, registrarVisita } = useArm();
   const [mostrarMas, setMostrarMas] = useState(false);
   const p = getPropiedad(id);
+
+  // Brisa anota en el ARM cada propiedad que el cliente abre.
+  useEffect(() => {
+    if (id) registrarVista(id);
+  }, [id, registrarVista]);
 
   if (!p) {
     return (
@@ -42,7 +49,9 @@ export function DetallePropiedad({ id }: { id: string }) {
 
   const volver = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const agendar = () => {
-    const msg = 'Un asesor de Habitat te contactará para coordinar la visita. (Demo: no se envió ninguna solicitud.)';
+    registrarVisita(p.id);
+    const msg =
+      'Brisa registró tu solicitud y un asesor de Habitat te contactará para coordinar el día y la hora. (Demo: no se envía ningún mensaje real.)';
     if (Platform.OS === 'web') window.alert(msg);
     else Alert.alert('Visita solicitada', msg);
   };
@@ -64,7 +73,10 @@ export function DetallePropiedad({ id }: { id: string }) {
                 icono={fav ? 'corazonLleno' : 'corazon'}
                 etiqueta={fav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
                 color={fav ? c.accent : undefined}
-                onPress={() => alternar(p.id)}
+                onPress={() => {
+                  alternar(p.id);
+                  registrarFavorito(p.id, !fav);
+                }}
               />
             </View>
           </View>
