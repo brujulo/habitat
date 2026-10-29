@@ -1,0 +1,71 @@
+# Compila el APK de Habitat para Android en los servidores de GitHub.
+# Se ejecuta en cada push a main o manualmente desde la pestaña "Actions".
+# El APK queda publicado en la sección "Releases" del repositorio.
+name: APK Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-android
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar proyecto Android
+        run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Compilar APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+
+      - name: Renombrar APK
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk out/Habitat.apk
+          ls -lh out
+
+      - name: Guardar como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Habitat-apk
+          path: out/Habitat.apk
+
+      - name: Publicar en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Habitat APK (build ${{ github.run_number }})
+          body: |
+            APK de prueba de Habitat para Android (ARM).
+            Descarga **Habitat.apk** en tu teléfono y ábrelo para instalar.
+            Si Android lo bloquea, permite "Instalar apps desconocidas" para tu navegador.
+          files: out/Habitat.apk
+          make_latest: true
