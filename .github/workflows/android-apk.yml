@@ -32,7 +32,9 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      # Los runners ubuntu-latest ya traen el SDK de Android (ANDROID_HOME).
+      - name: Verificar SDK de Android
+        run: echo "ANDROID_HOME=$ANDROID_HOME" && ls "$ANDROID_HOME"
 
       - name: Instalar dependencias
         run: npm ci
